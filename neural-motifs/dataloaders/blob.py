@@ -48,6 +48,8 @@ class Blob(object):
         self.proposal_chunks = None
         self.proposals = []
 
+        self.indexes = []
+
     @property
     def is_flickr(self):
         return self.mode == 'flickr'
@@ -68,6 +70,8 @@ class Blob(object):
         """
         i = len(self.imgs)
         self.imgs.append(d['img'])
+
+        self.indexes.append(d['index'])
 
         h, w, scale = d['img_size']
 
@@ -127,6 +131,7 @@ class Blob(object):
             ))
 
         self.imgs = Variable(torch.stack(self.imgs, 0), volatile=self.volatile)
+        self.indexes = np.array(self.indexes)
         self.im_sizes = np.stack(self.im_sizes).reshape(
             (self.num_gpus, self.batch_size_per_gpu, 3))
 

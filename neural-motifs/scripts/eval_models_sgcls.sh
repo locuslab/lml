@@ -20,9 +20,9 @@ elif [ $1 == "1" ]; then
 elif [ $1 == "2" ]; then
     echo "EVALING MOTIFNET"
     python models/eval_rels.py -m sgcls -model motifnet -order leftright -nl_obj 2 -nl_edge 4 -b 6 -clip 5 \
-        -p 100 -hidden_dim 512 -pooling_dim 4096 -lr 1e-3 -ngpu 1 -test -ckpt checkpoints/motifnet-sgcls/vgrel-7.tar -nepoch 50 -use_bias -cache motifnet_sgcls
+        -p 100 -hidden_dim 512 -pooling_dim 4096 -lr 1e-3 -ngpu 1 -test -ckpt checkpoints/vgrel-motifnet-sgcls.tar -nepoch 50 -use_bias -cache motifnet_sgcls
     python models/eval_rels.py -m predcls -model motifnet -order leftright -nl_obj 2 -nl_edge 4 -b 6 -clip 5 \
-        -p 100 -hidden_dim 512 -pooling_dim 4096 -lr 1e-3 -ngpu 1 -test -ckpt checkpoints/motifnet-sgcls/vgrel-7.tar -nepoch 50 -use_bias -cache motifnet_predcls
+        -p 100 -hidden_dim 512 -pooling_dim 4096 -lr 1e-3 -ngpu 1 -test -ckpt checkpoints/vgrel-motifnet-sgcls.tar -nepoch 50 -use_bias -cache motifnet_predcls
 fi
 
 

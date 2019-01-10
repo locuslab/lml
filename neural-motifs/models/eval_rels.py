@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 
 from dataloaders.visual_genome import VGDataLoader, VG
 import numpy as np
@@ -11,6 +12,11 @@ from config import BOX_SCALE, IM_SCALE
 import dill as pkl
 import os
 
+import sys
+from IPython.core import ultratb
+sys.excepthook = ultratb.FormattedTB(mode='Verbose',
+     color_scheme='Linux', call_pdb=1)
+
 conf = ModelConfig()
 if conf.model == 'motifnet':
     from lib.rel_model import RelModel
@@ -19,29 +25,33 @@ elif conf.model == 'stanford':
 else:
     raise ValueError()
 
-train, val, test = VG.splits(num_val_im=conf.val_size, filter_duplicate_rels=True,
-                          use_proposals=conf.use_proposals,
-                          filter_non_overlap=conf.mode == 'sgdet')
+train, val, test = VG.splits(
+    num_val_im=conf.val_size, filter_duplicate_rels=True,
+    use_proposals=conf.use_proposals,
+    filter_non_overlap=conf.mode == 'sgdet')
 if conf.test:
     val = test
-train_loader, val_loader = VGDataLoader.splits(train, val, mode='rel',
-                                               batch_size=conf.batch_size,
-                                               num_workers=conf.num_workers,
-                                               num_gpus=conf.num_gpus)
+train_loader, val_loader = VGDataLoader.splits(
+    train, val, mode='rel',
+    batch_size=conf.batch_size,
+    num_workers=conf.num_workers,
+    num_gpus=conf.num_gpus
+)
 
-detector = RelModel(classes=train.ind_to_classes, rel_classes=train.ind_to_predicates,
-                    num_gpus=conf.num_gpus, mode=conf.mode, require_overlap_det=True,
-                    use_resnet=conf.use_resnet, order=conf.order,
-                    nl_edge=conf.nl_edge, nl_obj=conf.nl_obj, hidden_dim=conf.hidden_dim,
-                    use_proposals=conf.use_proposals,
-                    pass_in_obj_feats_to_decoder=conf.pass_in_obj_feats_to_decoder,
-                    pass_in_obj_feats_to_edge=conf.pass_in_obj_feats_to_edge,
-                    pooling_dim=conf.pooling_dim,
-                    rec_dropout=conf.rec_dropout,
-                    use_bias=conf.use_bias,
-                    use_tanh=conf.use_tanh,
-                    limit_vision=conf.limit_vision
-                    )
+detector = RelModel(
+    classes=train.ind_to_classes, rel_classes=train.ind_to_predicates,
+    num_gpus=conf.num_gpus, mode=conf.mode, require_overlap_det=True,
+    use_resnet=conf.use_resnet, order=conf.order,
+    nl_edge=conf.nl_edge, nl_obj=conf.nl_obj, hidden_dim=conf.hidden_dim,
+    use_proposals=conf.use_proposals,
+    pass_in_obj_feats_to_decoder=conf.pass_in_obj_feats_to_decoder,
+    pass_in_obj_feats_to_edge=conf.pass_in_obj_feats_to_edge,
+    pooling_dim=conf.pooling_dim,
+    rec_dropout=conf.rec_dropout,
+    use_bias=conf.use_bias,
+    use_tanh=conf.use_tanh,
+    limit_vision=conf.limit_vision
+)
 
 
 detector.cuda()
@@ -57,11 +67,13 @@ optimistic_restore(detector, ckpt['state_dict'])
 
 all_pred_entries = []
 def val_batch(batch_num, b, evaluator, thrs=(20, 50, 100)):
-    det_res = detector[b]
-    if conf.num_gpus == 1:
-        det_res = [det_res]
+    result, result_preds = detector[b]
+    assert conf.num_gpus == 1
+    # if conf.num_gpus == 1:
+    #     result_preds = [result_preds]
 
-    for i, (boxes_i, objs_i, obj_scores_i, rels_i, pred_scores_i) in enumerate(det_res):
+
+    for i, (boxes_i, objs_i, obj_scores_i, rels_i, pred_scores_i) in enumerate(result_preds):
         gt_entry = {
             'gt_classes': val.gt_classes[batch_num + i].copy(),
             'gt_relations': val.relationships[batch_num + i].copy(),
@@ -110,3 +122,11 @@ else:
     if conf.cache is not None:
         with open(conf.cache,'wb') as f:
             pkl.dump(all_pred_entries, f)
+
+import pickle as pkl
+tag = 'test' if conf.test else 'train'
+if conf.multi_pred:
+    tag += '.multi_pred'
+for N in [20, 50, 100]:
+    pkl.dump(evaluator['predcls'].result_dict['predcls_recall'][N],
+            open('{}.{}.pkl'.format(tag, N), 'wb'))

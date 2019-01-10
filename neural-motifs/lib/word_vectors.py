@@ -12,7 +12,7 @@ from six.moves.urllib.request import urlretrieve
 from tqdm import tqdm
 
 from config import DATA_PATH
-import sys
+
 
 def obj_edge_vectors(names, wv_type='glove.6B', wv_dir=DATA_PATH, wv_dim=300):
     wv_dict, wv_arr, wv_size = load_word_vectors(wv_dir, wv_type, wv_dim)
@@ -52,23 +52,7 @@ def load_word_vectors(root, wv_type, dim):
     if os.path.isfile(fname + '.pt'):
         fname_pt = fname + '.pt'
         print('loading word vectors from', fname_pt)
-        try:
-            return torch.load(fname_pt)
-        except Exception as e:
-            print("""
-                Error loading the model from {}
-
-                This could be because this code was previously run with one
-                PyTorch version to generate cached data and is now being
-                run with another version.
-                You can try to delete the cached files on disk (this file
-                  and others) and re-running the code
-
-                Error message:
-                ---------
-                {}
-                """.format(fname_pt, str(e)))
-            sys.exit(-1)
+        return torch.load(fname_pt)
     if os.path.isfile(fname + '.txt'):
         fname_txt = fname + '.txt'
         cm = open(fname_txt, 'rb')

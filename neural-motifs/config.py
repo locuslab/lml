@@ -17,7 +17,8 @@ def stanford_path(fn):
 # =============================================================================
 # Update these with where your data is stored ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-VG_IMAGES = '/home/rowan/datasets2/VG_100K_2/VG_100K'
+# VG_IMAGES = '/home/rowan/datasets2/VG_100K_2/VG_100K'
+VG_IMAGES = '/data/datasets/visual_genome/VG_100K'
 RCNN_CHECKPOINT_FN = path('faster_rcnn_500k.h5')
 
 IM_DATA_FN = stanford_path('image_data.json')
@@ -25,7 +26,8 @@ VG_SGG_FN = stanford_path('VG-SGG.h5')
 VG_SGG_DICT_FN = stanford_path('VG-SGG-dicts.json')
 PROPOSAL_FN = stanford_path('proposals.h5')
 
-COCO_PATH = '/home/rowan/datasets/mscoco'
+# COCO_PATH = '/home/rowan/datasets/mscoco'
+COCO_PATH = '/TODO'
 # =============================================================================
 # =============================================================================
 
@@ -83,6 +85,7 @@ class ModelConfig(object):
         self.ad3 = False
         self.test = False
         self.adam = False
+        self.rmsprop = False
         self.multi_pred=False
         self.cache = None
         self.model = None
@@ -179,6 +182,7 @@ class ModelConfig(object):
                             default='')
         parser.add_argument('-gt_box', dest='gt_box', help='use gt boxes during training', action='store_true')
         parser.add_argument('-adam', dest='adam', help='use adam. Not recommended', action='store_true')
+        parser.add_argument('-rmsprop', dest='rmsprop', help='use rmsprop. Not recommended', action='store_true')
         parser.add_argument('-test', dest='test', help='test set', action='store_true')
         parser.add_argument('-multipred', dest='multi_pred', help='Allow multiple predicates per pair of box0, box1.', action='store_true')
         parser.add_argument('-nepoch', dest='num_epochs', help='Number of epochs to train the model for',type=int, default=25)
@@ -194,4 +198,5 @@ class ModelConfig(object):
         parser.add_argument('-use_bias', dest='use_bias',  action='store_true')
         parser.add_argument('-use_tanh', dest='use_tanh',  action='store_true')
         parser.add_argument('-limit_vision', dest='limit_vision',  action='store_true')
+        parser.add_argument('-lml_topk', type=int)
         return parser

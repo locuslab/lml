@@ -6,8 +6,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.parallel
-from torch.autograd import Variable
+from torch.autograd import Variable, grad
 from torch.nn import functional as F
+from torch.nn import Parameter
 from torch.nn.utils.rnn import PackedSequence
 from lib.resnet import resnet_l4
 from config import BATCHNORM_MOMENTUM
@@ -26,6 +27,26 @@ from lib.surgery import filter_dets
 from lib.word_vectors import obj_edge_vectors
 from lib.fpn.roi_align.functions.roi_align import RoIAlignFunction
 import math
+
+import sys
+sys.path.append('/nethome/bamos/2018-intel')
+from lml import LML
+
+
+def to_one_hot(y, n_dims=None):
+    y_tensor = y.data if isinstance(y, Variable) else y
+    y_tensor = y_tensor.type(torch.LongTensor).view(-1, 1)
+    n_dims = n_dims if n_dims is not None else int(torch.max(y_tensor)) + 1
+    y_one_hot = torch.zeros(y_tensor.size()[0], n_dims).scatter_(1, y_tensor, 1)
+    y_one_hot = y_one_hot.view(*y.shape, -1)
+
+    if y.is_cuda:
+        y_one_hot = y_one_hot.cuda()
+
+    if isinstance(y, Variable):
+        y_one_hot = Variable(y_one_hot)
+
+    return y_one_hot
 
 
 def _sort_by_score(im_inds, scores):
@@ -296,16 +317,21 @@ class LinearizedContext(nn.Module):
         return obj_dists2, obj_preds, edge_ctx
 
 
+
 class RelModel(nn.Module):
     """
     RELATIONSHIPS
     """
-    def __init__(self, classes, rel_classes, mode='sgdet', num_gpus=1, use_vision=True, require_overlap_det=True,
-                 embed_dim=200, hidden_dim=256, pooling_dim=2048,
-                 nl_obj=1, nl_edge=2, use_resnet=False, order='confidence', thresh=0.01,
-                 use_proposals=False, pass_in_obj_feats_to_decoder=True,
-                 pass_in_obj_feats_to_edge=True, rec_dropout=0.0, use_bias=True, use_tanh=True,
-                 limit_vision=True):
+    def __init__(
+            self, classes, rel_classes, mode='sgdet', num_gpus=1,
+            use_vision=True, require_overlap_det=True,
+            embed_dim=200, hidden_dim=256, pooling_dim=2048,
+            nl_obj=1, nl_edge=2, use_resnet=False, order='confidence', thresh=0.01,
+            use_proposals=False, pass_in_obj_feats_to_decoder=True,
+            pass_in_obj_feats_to_edge=True, rec_dropout=0.0, use_bias=True,
+            use_tanh=True, limit_vision=True,
+            lml_topk=False,
+    ):
 
         """
         :param classes: Object classes
@@ -334,7 +360,10 @@ class RelModel(nn.Module):
         self.use_bias = use_bias
         self.use_vision = use_vision
         self.use_tanh = use_tanh
-        self.limit_vision=limit_vision
+        self.limit_vision = limit_vision
+
+        self.lml_topk = lml_topk
+
         self.require_overlap = require_overlap_det and self.mode == 'sgdet'
 
         self.detector = ObjectDetector(
@@ -345,17 +374,21 @@ class RelModel(nn.Module):
             max_per_img=64,
         )
 
-        self.context = LinearizedContext(self.classes, self.rel_classes, mode=self.mode,
-                                         embed_dim=self.embed_dim, hidden_dim=self.hidden_dim,
-                                         obj_dim=self.obj_dim,
-                                         nl_obj=nl_obj, nl_edge=nl_edge, dropout_rate=rec_dropout,
-                                         order=order,
-                                         pass_in_obj_feats_to_decoder=pass_in_obj_feats_to_decoder,
-                                         pass_in_obj_feats_to_edge=pass_in_obj_feats_to_edge)
+        self.context = LinearizedContext(
+            self.classes, self.rel_classes, mode=self.mode,
+            embed_dim=self.embed_dim, hidden_dim=self.hidden_dim,
+            obj_dim=self.obj_dim,
+            nl_obj=nl_obj, nl_edge=nl_edge, dropout_rate=rec_dropout,
+            order=order,
+            pass_in_obj_feats_to_decoder=pass_in_obj_feats_to_decoder,
+            pass_in_obj_feats_to_edge=pass_in_obj_feats_to_edge
+        )
 
         # Image Feats (You'll have to disable if you want to turn off the features from here)
-        self.union_boxes = UnionBoxesAndFeats(pooling_size=self.pooling_size, stride=16,
-                                              dim=1024 if use_resnet else 512)
+        self.union_boxes = UnionBoxesAndFeats(
+            pooling_size=self.pooling_size, stride=16,
+            dim=1024 if use_resnet else 512
+        )
 
         if use_resnet:
             self.roi_fmap = nn.Sequential(
@@ -366,7 +399,10 @@ class RelModel(nn.Module):
         else:
             roi_fmap = [
                 Flattener(),
-                load_vgg(use_dropout=False, use_relu=False, use_linear=pooling_dim == 4096, pretrained=False).classifier,
+                load_vgg(
+                    use_dropout=False, use_relu=False,
+                    use_linear=pooling_dim == 4096, pretrained=False
+                ).classifier,
             ]
             if pooling_dim != 4096:
                 roi_fmap.append(nn.Linear(4096, pooling_dim))
@@ -377,10 +413,12 @@ class RelModel(nn.Module):
         self.post_lstm = nn.Linear(self.hidden_dim, self.pooling_dim * 2)
 
         # Initialize to sqrt(1/2n) so that the outputs all have mean 0 and variance 1.
-        # (Half contribution comes from LSTM, half from embedding.
+        # (Half contribuTion comes from LSTM, half from embedding.
 
         # In practice the pre-lstm stuff tends to have stdev 0.1 so I multiplied this by 10.
-        self.post_lstm.weight.data.normal_(0, 10.0 * math.sqrt(1.0 / self.hidden_dim))
+        self.post_lstm.weight.data.normal_(
+            0, 10.0 * math.sqrt(1.0 / self.hidden_dim)
+        )
         self.post_lstm.bias.data.zero_()
 
         if nl_edge == 0:
@@ -388,9 +426,12 @@ class RelModel(nn.Module):
             self.post_emb.weight.data.normal_(0, math.sqrt(1.0))
 
         self.rel_compress = nn.Linear(self.pooling_dim, self.num_rels, bias=True)
-        self.rel_compress.weight = torch.nn.init.xavier_normal(self.rel_compress.weight, gain=1.0)
+        self.rel_compress.weight = torch.nn.init.xavier_normal(
+            self.rel_compress.weight, gain=1.0)
         if self.use_bias:
             self.freq_bias = FrequencyBias()
+
+
 
     @property
     def num_classes(self):
@@ -443,13 +484,20 @@ class RelModel(nn.Module):
         :param rois: [num_rois, 5] array of [img_num, x0, y0, x1, y1].
         :return: [num_rois, #dim] array
         """
-        feature_pool = RoIAlignFunction(self.pooling_size, self.pooling_size, spatial_scale=1 / 16)(
-            features, rois)
+        feature_pool = RoIAlignFunction(
+            self.pooling_size, self.pooling_size, spatial_scale=1 / 16
+        )(
+            features, rois
+        )
         return self.roi_fmap_obj(feature_pool.view(rois.size(0), -1))
 
-    def forward(self, x, im_sizes, image_offset,
-                gt_boxes=None, gt_classes=None, gt_rels=None, proposals=None, train_anchor_inds=None,
-                return_fmap=False):
+
+    # @profile
+    def forward(
+            self, x, im_sizes, image_offset,
+            gt_boxes=None, gt_classes=None, gt_rels=None, proposals=None,
+            train_anchor_inds=None, return_fmap=False
+    ):
         """
         Forward pass for detection
         :param x: Images@[batch_size, 3, IM_SIZE, IM_SIZE]
@@ -462,27 +510,32 @@ class RelModel(nn.Module):
         :param gt_classes: [num_gt, 2] gt boxes where each one is (img_id, class)
         :param train_anchor_inds: a [num_train, 2] array of indices for the anchors that will
                                   be used to compute the training loss. Each (img_ind, fpn_idx)
-        :return: If train:
-            scores, boxdeltas, labels, boxes, boxtargets, rpnscores, rpnboxes, rellabels
-            
-            if test:
-            prob dists, boxes, img inds, maxscores, classes
-            
+        :return:
+            (scores, boxdeltas, labels, boxes, boxtargets,
+                rpnscores, rpnboxes, rellabels)
+            (prob dists, boxes, img inds, maxscores, classes)
+
         """
-        result = self.detector(x, im_sizes, image_offset, gt_boxes, gt_classes, gt_rels, proposals,
-                               train_anchor_inds, return_fmap=True)
+
+        result = self.detector(
+            x, im_sizes, image_offset, gt_boxes, gt_classes,
+            gt_rels, proposals, train_anchor_inds, return_fmap=True
+        )
         if result.is_none():
             return ValueError("heck")
 
         im_inds = result.im_inds - image_offset
         boxes = result.rm_box_priors
 
+        # if self.training and result.rel_labels is None:
         if self.training and result.rel_labels is None:
             assert self.mode == 'sgdet'
-            result.rel_labels = rel_assignments(im_inds.data, boxes.data, result.rm_obj_labels.data,
-                                                gt_boxes.data, gt_classes.data, gt_rels.data,
-                                                image_offset, filter_non_overlap=True,
-                                                num_sample_per_gt=1)
+            result.rel_labels = rel_assignments(
+                im_inds.data, boxes.data, result.rm_obj_labels.data,
+                gt_boxes.data, gt_classes.data, gt_rels.data,
+                image_offset, filter_non_overlap=True,
+                num_sample_per_gt=1
+            )
 
         rel_inds = self.get_rel_inds(result.rel_labels, im_inds, boxes)
 
@@ -494,8 +547,11 @@ class RelModel(nn.Module):
         result.rm_obj_dists, result.obj_preds, edge_ctx = self.context(
             result.obj_fmap,
             result.rm_obj_dists.detach(),
-            im_inds, result.rm_obj_labels if self.training or self.mode == 'predcls' else None,
-            boxes.data, result.boxes_all)
+            im_inds,
+            result.rm_obj_labels if self.training or self.mode == 'predcls' else None,
+            boxes.data,
+            result.boxes_all
+        )
 
         if edge_ctx is None:
             edge_rep = self.post_emb(result.obj_preds)
@@ -508,43 +564,121 @@ class RelModel(nn.Module):
         subj_rep = edge_rep[:, 0]
         obj_rep = edge_rep[:, 1]
 
-        prod_rep = subj_rep[rel_inds[:, 1]] * obj_rep[rel_inds[:, 2]]
+        result.subj_rep_rel = subj_rep[rel_inds[:, 1]]
+        result.obj_rep_rel = obj_rep[rel_inds[:, 2]]
+        result.prod_rep = result.subj_rep_rel * result.obj_rep_rel
 
         if self.use_vision:
-            vr = self.visual_rep(result.fmap.detach(), rois, rel_inds[:, 1:])
+            result.vr = self.visual_rep(
+                result.fmap.detach(), rois, rel_inds[:, 1:]
+            )
             if self.limit_vision:
                 # exact value TBD
-                prod_rep = torch.cat((prod_rep[:,:2048] * vr[:,:2048], prod_rep[:,2048:]), 1)
+                import ipdb; ipdb.set_trace()
+                result.prod_rep = torch.cat(
+                    (prod_rep[:,:2048] * vr[:,:2048], prod_rep[:,2048:]),
+                    1
+                )
             else:
-                prod_rep = prod_rep * vr
+                result.prod_rep = result.prod_rep * result.vr
 
         if self.use_tanh:
-            prod_rep = F.tanh(prod_rep)
+            result.prod_rep = F.tanh(result.prod_rep)
 
-        result.rel_dists = self.rel_compress(prod_rep)
+        result.rel_dists = self.rel_compress(result.prod_rep)
+
+        result.obj_from = result.obj_preds[rel_inds[:, 1]]
+        result.obj_to = result.obj_preds[rel_inds[:, 2]]
 
         if self.use_bias:
-            result.rel_dists = result.rel_dists + self.freq_bias.index_with_labels(torch.stack((
-                result.obj_preds[rel_inds[:, 1]],
-                result.obj_preds[rel_inds[:, 2]],
-            ), 1))
+            result.rel_dists = result.rel_dists + \
+                self.freq_bias.index_with_labels(
+                    torch.stack((result.obj_from, result.obj_to), 1)
+                )
 
-        if self.training:
-            return result
+        # if self.training:
+        #     return result
 
-        twod_inds = arange(result.obj_preds.data) * self.num_classes + result.obj_preds.data
-        result.obj_scores = F.softmax(result.rm_obj_dists, dim=1).view(-1)[twod_inds]
+        idxs, n_objs = np.unique(im_inds.data.cpu().numpy(), return_counts=True)
 
-        # Bbox regression
-        if self.mode == 'sgdet':
-            bboxes = result.boxes_all.view(-1, 4)[twod_inds].view(result.boxes_all.size(0), 4)
+        if not self.training:
+            assert len(n_objs) == 1
+            n_rels = [len(rel_inds)]
         else:
-            # Boxes will get fixed by filter_dets function.
-            bboxes = result.rm_box_priors
+            _, n_rels = np.unique(
+                result.rel_labels.data[:,0].cpu().numpy(), return_counts=True
+            )
+            n_rels = n_rels.tolist()
 
-        rel_rep = F.softmax(result.rel_dists, dim=1)
-        return filter_dets(bboxes, result.obj_scores,
-                           result.obj_preds, rel_inds[:, 1:], rel_rep)
+        preds = []
+        obj_start = 0
+        rel_start = 0
+        result.obj_scores = []
+        result.rel_reps = []
+        for idx, n_obj, n_rel in zip(idxs, n_objs, n_rels):
+            obj_end = obj_start + n_obj
+            rel_end = rel_start + n_rel
+
+            obj_preds_i = result.obj_preds.data[obj_start:obj_end]
+            rm_obj_dists_i = result.rm_obj_dists[obj_start:obj_end]
+
+            twod_inds = arange(obj_preds_i) * self.num_classes + obj_preds_i
+            result.obj_scores.append(
+                F.softmax(rm_obj_dists_i, dim=1).view(-1)[twod_inds]
+            )
+
+            # Bbox regression
+            if self.mode == 'sgdet':
+                import ipdb; ipdb.set_trace() # TODO
+                bboxes = result.boxes_all.view(-1, 4)[twod_inds].view(result.boxes_all.size(0), 4)
+            else:
+                # Boxes will get fixed by filter_dets function.
+                bboxes_i = result.rm_box_priors[obj_start:obj_end]
+
+            if self.mode == 'predcls':
+                ((rm_obj_dists_i/1000)+1)/2
+
+            rel_dists_i = result.rel_dists[rel_start:rel_end]
+            obj_preds_i = result.obj_preds[obj_start:obj_end]
+            obj_scores_i = result.obj_scores[-1]
+            if self.lml_topk is not None and self.lml_topk:
+                rel_rep = LML(N=self.lml_topk, branch=1000)(
+                        rel_dists_i[:,1:].contiguous().view(-1)
+                ).view(n_rel, -1)
+
+                rel_rep = torch.cat((
+                    Variable(torch.zeros(n_rel, 1).type_as(rel_dists_i.data)),
+                    rel_rep,
+                ), 1)
+            else:
+                rel_rep = F.softmax(rel_dists_i, dim=1)
+            result.rel_reps.append(rel_rep)
+
+            rel_inds_i = rel_inds[rel_start:rel_end, 1:].clone()
+            rel_inds_i = rel_inds_i - rel_inds_i.min() # Very hacky fix...
+
+            # For debugging:
+            # bboxes_i = bboxes_i.cpu()
+            # obj_scores_i = obj_scores_i.cpu()
+            # obj_preds_i = obj_preds_i.cpu()
+            # rel_inds_i = rel_inds_i.cpu()
+            # rel_rep = rel_rep.cpu()
+
+            pred = filter_dets(
+                bboxes_i,
+                obj_scores_i,
+                obj_preds_i,
+                rel_inds_i,
+                rel_rep
+            )
+            preds.append(pred)
+
+            obj_start += n_obj
+            rel_start += n_rel
+
+        assert obj_start == result.obj_preds.shape[0]
+        assert rel_start == rel_inds.shape[0]
+        return result, preds
 
     def __getitem__(self, batch):
         """ Hack to do multi-GPU training"""

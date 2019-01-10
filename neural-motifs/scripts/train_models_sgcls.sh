@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # This is a script that will train all of the models for scene graph classification and then evaluate them.
-export CUDA_VISIBLE_DEVICES=$1
+# export CUDA_VISIBLE_DEVICES=$1
+export CUDA_VISIBLE_DEVICES=1
 
 if [ $1 == "0" ]; then
     echo "TRAINING THE BASELINE"
@@ -17,7 +18,7 @@ elif [ $1 == "2" ]; then
     echo "TRAINING MOTIFNET"
 
     python models/train_rels.py -m sgcls -model motifnet -order leftright -nl_obj 2 -nl_edge 4 -b 6 -clip 5 \
-        -p 100 -hidden_dim 512 -pooling_dim 4096 -lr 1e-3 -ngpu 1 -ckpt checkpoints/vgdet/vg-24.tar \
+        -p 100 -hidden_dim 512 -pooling_dim 4096 -lr 1e-3 -ngpu 1 -ckpt checkpoints/vg-faster-rcnn.tar \
         -save_dir checkpoints/motifnet2 -nepoch 50 -use_bias
 fi
 

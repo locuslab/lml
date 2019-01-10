@@ -51,11 +51,12 @@ class VG(Dataset):
         self.filter_non_overlap = filter_non_overlap
         self.filter_duplicate_rels = filter_duplicate_rels and self.mode == 'train'
 
-        self.split_mask, self.gt_boxes, self.gt_classes, self.relationships = load_graphs(
-            self.roidb_file, self.mode, num_im, num_val_im=num_val_im,
-            filter_empty_rels=filter_empty_rels,
-            filter_non_overlap=self.filter_non_overlap and self.is_train,
-        )
+        self.split_mask, self.gt_boxes, self.gt_classes, self.relationships = \
+            load_graphs(
+                self.roidb_file, self.mode, num_im, num_val_im=num_val_im,
+                filter_empty_rels=filter_empty_rels,
+                filter_non_overlap=self.filter_non_overlap and self.is_train,
+            )
 
         self.filenames = load_image_filenames(image_file)
         self.filenames = [self.filenames[i] for i in np.where(self.split_mask)[0]]
@@ -261,8 +262,10 @@ def load_image_filenames(image_file, image_dir=VG_IMAGES):
     return fns
 
 
-def load_graphs(graphs_file, mode='train', num_im=-1, num_val_im=0, filter_empty_rels=True,
-                filter_non_overlap=False):
+def load_graphs(
+        graphs_file, mode='train', num_im=-1, num_val_im=0, filter_empty_rels=True,
+        filter_non_overlap=False
+):
     """
     Load the file containing the GT boxes and relations, as well as the dataset split
     :param graphs_file: HDF5
@@ -271,11 +274,12 @@ def load_graphs(graphs_file, mode='train', num_im=-1, num_val_im=0, filter_empty
     :param num_val_im: Number of validation images
     :param filter_empty_rels: (will be filtered otherwise.)
     :param filter_non_overlap: If training, filter images that dont overlap.
-    :return: image_index: numpy array corresponding to the index of images we're using
-             boxes: List where each element is a [num_gt, 4] array of ground 
+    :return: image_index: numpy array corresponding to the index of
+        images we're using
+             boxes: List where each element is a [num_gt, 4] array of ground
                     truth boxes (x1, y1, x2, y2)
              gt_classes: List where each element is a [num_gt] array of classes
-             relationships: List where each element is a [num_r, 3] array of 
+             relationships: List where each element is a [num_r, 3] array of
                     (box_ind_1, box_ind_2, predicate) relationships
     """
     if mode not in ('train', 'val', 'test'):
