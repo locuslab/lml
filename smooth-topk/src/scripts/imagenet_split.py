@@ -1,6 +1,11 @@
+#!/usr/bin/env python3
+
 import os
 import shutil
 import torchvision.datasets as datasets
+
+import sys
+sys.path.append('/nethome/bamos/2018-intel/smooth-topk/src')
 
 from collections import defaultdict
 from data.utils import random_subsets
@@ -48,7 +53,7 @@ else:
     raise ValueError("data set should be balanced")
 
 print("Number of labels: {}".format(len(counter)))
-print("Number of images per label: {}".format(counter.values()[0]))
+print("Number of images per label: {}".format(list(counter.values())[0]))
 
 print("Creating directories...")
 for new_dir in os.listdir(train_root):

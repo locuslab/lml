@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
+
 import argparse
 import torch
 import numpy as np
 import itertools
 import time
+
+import os
 
 from torch.autograd import Variable
 
@@ -13,6 +17,13 @@ from losses.polynomial.sp import LogSumExp
 from losses.utils import split
 from tests.th_ref import log_sum_exp_k
 
+sys.path.append('../../')
+from lml import LML
+
+# import sys
+# from IPython.core import ultratb
+# sys.excepthook = ultratb.FormattedTB(mode='Verbose',
+#      color_scheme='Linux', call_pdb=1)
 
 def sum_k_pyref(x, k):
     exp = torch.exp(x.data.cpu().numpy())
@@ -46,27 +57,38 @@ def esf_py(x, k, buffer):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--k', type=int, default=5)
-parser.add_argument('--tau', type=float, default=0.1)
+parser.add_argument('--tau', type=float, default=1.0)
 parser.add_argument('--n_classes', type=int, default=1000)
 parser.add_argument('--batch-size', type=int, default=256)
+parser.add_argument('--n_trials', type=int, default=50)
+parser.add_argument('--no-cuda', action='store_true')
 
+fname = '../xp/perf_results.txt'
+if not os.path.exists(fname):
+    f = open(fname, 'w')
+    f.write('k,n_classes,batch_size,n_trials,tau,cuda,alg,forward,mean,std\n')
+else:
+    f = open(fname, 'a')
 
 args = parser.parse_args()
 k = args.k
-CUDA = torch.cuda.is_available()
+CUDA = (not args.no_cuda) and torch.cuda.is_available()
 tau = args.tau
 batch_size = args.batch_size
 n_classes = args.n_classes
+n_trials = args.n_trials
 
-print("=" * 90)
+print("=" * 70)
 print("CONFIGURATION")
-print("=" * 90)
-print('-' * 90)
+print("=" * 70)
+print('-' * 70)
 print('k: \t\t{}'.format(k))
 print('C: \t\t{}'.format(n_classes))
 print('Batch size: \t{}'.format(batch_size))
 print('Tau: \t\t{}'.format(tau))
-print('-' * 90)
+print('Cuda: \t\t{}'.format(CUDA))
+print('n_trials: \t\t{}'.format(n_trials))
+print('-' * 70)
 
 torch.manual_seed(1234)
 
@@ -84,16 +106,13 @@ x_1.div_(k * tau)
 x_2.div_(k * tau)
 
 
-def timing_fun(fun, x, k, verbosity, double=False, ntimes=50,
+def timing_fun(fun, x, k, verbosity, double=False, n_trials=50,
                forward=1, use_buffer=False):
-
-    avg_clock = 0.
-    for _ in range(ntimes):
+    times = []
+    for _ in range(n_trials):
         if double:
             x = x.double()
-        x = Variable(x.data.clone(),
-                     volatile=forward,
-                     requires_grad=not forward)
+        x = Variable(x.data.clone(), requires_grad=not forward)
         if use_buffer:
             buffer = x.data.new(x.size(0), x.size(1), k + 1)
         if CUDA:
@@ -113,51 +132,143 @@ def timing_fun(fun, x, k, verbosity, double=False, ntimes=50,
             torch.cuda.synchronize()
         clock += time.time()
 
-        avg_clock += clock
+        times.append(clock)
 
         if verbosity:
             print(torch.stack((skm1.data, sk.data), dim=1).sum())
 
-    # average over ntimes
-    avg_clock /= ntimes
-
-    return avg_clock, ntimes
+    return np.mean(times), np.std(times)
 
 
 def speed(verbosity=1, forward=1):
 
-    print("=" * 90)
+    print("=" * 70)
     print("SPEED")
-    print("=" * 90)
+    print("=" * 70)
 
-    print('-' * 90)
+    print('-' * 70)
     if forward:
         print('FORWARD')
     else:
         print('BACKWARD')
-    print('-' * 90)
+    print('-' * 70)
 
     if not forward:
-        clock, ntimes = timing_fun(log_sum_exp_k, x_1, k, verbosity,
-                                   double=False, forward=forward)
-        print("Divide-and-conquer AD: \t{0:.3f}s / mini-batch \t (avg of {1} runs)".format(clock, ntimes))
+        mean, stdev = timing_fun(
+            log_sum_exp_k, x_1, k, verbosity,
+            double=False, forward=forward,
+            n_trials=n_trials
+        )
+        print("Divide-and-conquer AD: {:.3e}s +/- {:.3e}s / mini-batch".format(mean, stdev))
+        f.write(','.join(map(str, [
+            k, n_classes, batch_size, n_trials, tau, CUDA, 'dac_ad', forward, mean, stdev
+        ])) + '\n')
 
     if forward:
-        clock, ntimes = timing_fun(esf_py, x_1, k, verbosity,
-                                   double=False, forward=forward,
-                                   use_buffer=True)
-        print("Summation Algorithm: \t{0:.3f}s / mini-batch \t (avg of {1} runs)".format(clock, ntimes))
+        mean, stdev = timing_fun(
+            esf_py, x_1, k, verbosity,
+            double=False, forward=forward,
+            use_buffer=True, n_trials=n_trials
+        )
+        print("Summation Algorithm: {:.3e}s +/- {:.3e}s / mini-batch".format(mean, stdev))
+        f.write(','.join(map(str, [
+            k, n_classes, batch_size, n_trials, tau, CUDA, 'sum', forward, mean, stdev
+        ])) + '\n')
 
-    clock, ntimes = timing_fun(lambda x, y: LogSumExp(k)(x), x_1, k, verbosity,
-                               double=False, forward=forward)
-    print("Divide-and-conquer MD: \t{0:.3f}s / mini-batch \t (avg of {1} runs)".format(clock, ntimes))
+    mean, stdev = timing_fun(
+        lambda x, y: LogSumExp(k)(x), x_1, k, verbosity,
+        double=False, forward=forward, n_trials=n_trials,
+    )
+    print("Divide-and-conquer MD: {:.3e}s +/- {:.3e}s / mini-batch".format(mean, stdev))
+    f.write(','.join(map(str, [
+        k, n_classes, batch_size, n_trials, tau, CUDA, 'dac_md', forward, mean, stdev
+    ])) + '\n')
+
+    mean, stdev = prof_lml(
+        x_1, k, verbosity, double=False, forward=forward, n_trials=n_trials
+    )
+    f.write(','.join(map(str, [
+        k, n_classes, batch_size, n_trials, None, CUDA, 'lml', forward, mean, stdev
+    ])) + '\n')
+    print("LML: {:.3e}s +/- {:.3e}s / mini-batch".format(mean, stdev))
+
+    mean, stdev = prof_entr(
+        x_1, k, verbosity, double=False, forward=forward, n_trials=n_trials
+    )
+    f.write(','.join(map(str, [
+        k, n_classes, batch_size, n_trials, None, CUDA, 'entr', forward, mean, stdev
+    ])) + '\n')
+    print("entr: {:.3e}s +/- {:.3e}s / mini-batch".format(mean, stdev))
+
+
+def prof_lml(x, k, verbosity, double=False, n_trials=50, forward=1):
+    times = []
+    for _ in range(n_trials):
+        if double:
+            x = x.double()
+        x = Variable(x.data.clone(), requires_grad=not forward)
+
+        if CUDA:
+            torch.cuda.synchronize()
+        if forward:
+            clock = -time.time()
+
+        p = LML(N=k, eps=1e-4)(x)
+
+        if not forward:
+            if CUDA:
+                torch.cuda.synchronize()
+            clock = -time.time()
+            p.sum().backward()
+        if CUDA:
+            torch.cuda.synchronize()
+        clock += time.time()
+
+        times.append(clock)
+
+        if verbosity:
+            print(torch.stack((skm1.data, sk.data), dim=1).sum())
+
+    return np.mean(times), np.std(times)
+
+
+def prof_entr(x, k, verbosity, double=False, n_trials=50, forward=1):
+    times = []
+    for _ in range(n_trials):
+        if double:
+            x = x.double()
+        x = Variable(x.data.clone(), requires_grad=not forward)
+
+        if CUDA:
+            torch.cuda.synchronize()
+        if forward:
+            clock = -time.time()
+
+        p, _ = x.sort(dim=1, descending=True)
+
+        if not forward:
+            if CUDA:
+                torch.cuda.synchronize()
+            clock = -time.time()
+            p.sum().backward()
+        if CUDA:
+            torch.cuda.synchronize()
+        clock += time.time()
+
+        times.append(clock)
+
+        if verbosity:
+            print(torch.stack((skm1.data, sk.data), dim=1).sum())
+
+    return np.mean(times), np.std(times)
+
 
 
 def run_fun(fun, x, k, double=False, use_buffer=False):
 
     if double:
         x = x.double()
-    x = Variable(x.data.clone(), volatile=True)
+    x = Variable(x.data.clone())
 
     if use_buffer:
         buffer = x.data.new(x.size(0), x.size(1), k + 1)
@@ -171,9 +282,9 @@ def run_fun(fun, x, k, double=False, use_buffer=False):
 
 def stability():
 
-    print("=" * 90)
+    print("=" * 70)
     print("STABILITY")
-    print("=" * 90)
+    print("=" * 70)
 
     print('\n(Test successful if the number is not inf / nan)\n')
 
@@ -193,4 +304,4 @@ def stability():
 speed(verbosity=0, forward=1)
 speed(verbosity=0, forward=0)
 
-stability()
+# stability()

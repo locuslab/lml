@@ -135,7 +135,7 @@ def _add_training_parser(parser):
     t_parser.add_argument('--batch-size', type=int,
                           help="batch size")
     t_parser.add_argument('--test-batch-size', type=int,
-                          default=256, help="test batch size")
+                          default=64, help="test batch size")
     t_parser.add_argument('--epochs', type=int,
                           default=None,
                           help="number of epochs")
@@ -147,8 +147,8 @@ def _add_loss_parser(parser):
     l_parser = parser.add_argument_group(title='Loss parameters')
 
     l_parser.add_argument('--loss', type=str, required=True,
-                          choices=['svm', 'ce', 'svm-lapin'],
-                          help="loss ('svm' or 'ce')")
+                          choices=['svm', 'ce', 'svm-lapin', 'lml', 'entr'],
+                          help="loss ('svm', 'ce', 'lml')")
     l_parser.add_argument('--topk', type=int,
                           help="Top-k error to minimize")
     l_parser.add_argument('--alpha', type=float, default=1.,

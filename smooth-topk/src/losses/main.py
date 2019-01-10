@@ -1,6 +1,7 @@
 import torch.nn as nn
 from losses.svm import SmoothSVM
-
+from losses.lml_loss import LMLLoss
+from losses.entr import EntrLoss
 
 def get_loss(xp, args):
     if args.loss == "svm":
@@ -9,6 +10,14 @@ def get_loss(xp, args):
     elif args.loss == 'ce':
         print("Using CE loss")
         loss = nn.CrossEntropyLoss()
+        loss.tau = -1
+    elif args.loss == 'lml':
+        print("Using LML loss")
+        loss = LMLLoss(n_classes=args.num_classes, k=args.topk)
+        loss.tau = -1
+    elif args.loss == 'entr':
+        print("Using truncated entr (Lapin) loss")
+        loss = EntrLoss(n_classes=args.num_classes, k=args.topk)
         loss.tau = -1
     else:
         raise ValueError('Invalid choice of loss ({})'.format(args.loss))

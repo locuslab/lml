@@ -104,6 +104,7 @@ def split_dataset(dataset_train, dataset_val, train_size, val_size):
             train_imgs += [(imgs[idx], int(k)) for idx in train_indices]
         np.random.shuffle(train_imgs)
         dataset_train.imgs = train_imgs
+        dataset_train.samples = train_imgs
     else:
         train_indices, val_indices = random_subsets((train_size, val_size),
                                                     len(dataset_train),

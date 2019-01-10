@@ -144,7 +144,7 @@ def create_experiment(args):
 def save_out(xp, out_name, model, optimizer):
     # save out current logs, model and optimizer
     xp.to_json("{}.json".format(out_name))
-    with open('{}.pkl'.format(out_name), 'w') as f:
+    with open('{}.pkl'.format(out_name), 'wb') as f:
         torch.save({'epoch': int(xp.Epoch.value),
                     'model': model.state_dict(),
                     'model_repr': repr(model),

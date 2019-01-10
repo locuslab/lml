@@ -4,7 +4,7 @@ import torch.utils.data as data
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
-from utils import LabelNoise, split_dataset
+from .utils import LabelNoise, split_dataset
 
 
 def get_loaders(args):
@@ -58,11 +58,11 @@ def loaders_cifar(dataset_name, batch_size, cuda,
     # define two datasets in order to have different transforms
     # on training and validation (no augmentation on validation)
     dataset_train = datasets.CIFAR100(root=root, train=True,
-                                      transform=transform_train)
+                                      transform=transform_train, download=True)
     dataset_val = datasets.CIFAR100(root=root, train=True,
-                                    transform=transform_test)
+                                    transform=transform_test, download=True)
     dataset_test = datasets.CIFAR100(root=root, train=False,
-                                     transform=transform_test)
+                                     transform=transform_test, download=True)
 
     # label noise
     if noise:
@@ -80,7 +80,7 @@ def loaders_imagenet(dataset_name, batch_size, cuda,
 
     assert dataset_name == 'imagenet'
     data_root = data_root if data_root is not None else os.environ['VISION_DATA_SSD']
-    root = '{}/ILSVRC2012-prepr-split/images'.format(data_root)
+    root = '{}/ILSVRC2012-smooth-topk-splits/images'.format(data_root)
 
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
@@ -106,7 +106,7 @@ def loaders_imagenet(dataset_name, batch_size, cuda,
 
     if augment:
         transform_train = transforms.Compose([
-            transforms.RandomCrop(224),
+            transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize])

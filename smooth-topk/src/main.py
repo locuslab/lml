@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+
+# import waitGPU
+# waitGPU.wait(interval=10, nproc=0, ngpu=1)
+# import setGPU
+
 import argparse
 
 from cli import add_all_parsers, set_defaults
@@ -13,8 +19,20 @@ from epoch import train, test
 from losses.main import get_loss
 from models.main import get_model, load_model
 
+from setproctitle import setproctitle
+
+import sys
+from IPython.core import ultratb
+sys.excepthook = ultratb.FormattedTB(mode='Verbose',
+     color_scheme='Linux', call_pdb=1)
 
 def run(args):
+    tag = 'bamos.smooth-topk.seed={}.{}'.format(args.seed, args.dataset)
+    if args.dataset == 'cifar100':
+        tag += '.noise={}'.format(args.noise_labels)
+    elif args.dataset == 'imagenet':
+        tag += '-{}'.format(args.train_size)
+    setproctitle(tag)
 
     set_seed(args.seed)
     xp = create_experiment(args)

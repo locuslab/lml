@@ -104,7 +104,7 @@ class DenseBlock(nn.Module):
 
     def _make_layer(self, block, in_planes, growth_rate, nb_layers, dropRate):
         layers = []
-        for i in range(nb_layers):
+        for i in range(int(nb_layers)):
             layers.append(block(in_planes + i * growth_rate,
                                 growth_rate, dropRate))
         return nn.Sequential(*layers)

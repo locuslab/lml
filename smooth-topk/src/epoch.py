@@ -38,7 +38,7 @@ def train(model, loss, optimizer, loader, xp, args):
 
         prec1 = accuracy(output.data, target.data, topk=1)
         preck = accuracy(output.data, target.data, topk=xp.config['topk'])
-        xp.Parent_Train.update(loss=obj.data[0], acck=preck, acc1=prec1, n=data.size(0))
+        xp.Parent_Train.update(loss=obj.data.item(), acck=preck, acc1=prec1, n=data.size(0))
 
     # compute objective function (including regularization)
     obj = xp.Loss_Train.get() + regularization(model, xp.mu)

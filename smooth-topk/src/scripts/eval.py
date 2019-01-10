@@ -1,8 +1,10 @@
+#!/usr/bin/env python3
+
 import os
 import subprocess
 import pprint
 
-dataset = 'imagenet'
+dataset = 'cifar100'
 xp_dir = '../xp/{}'.format(dataset)
 
 # multiple crops option
@@ -14,8 +16,10 @@ else:
     raise ValueError
 
 for _, _, files in os.walk(xp_dir):
-
-    to_analyze = sorted(filter(lambda x: 'best' in x and x.endswith('.pkl'), files))
+    to_analyze = sorted(filter(
+        lambda x: 'best' in x and x.endswith('.pkl'),
+        files
+    ))
     n_analyze = len(to_analyze)
     print("Found {} files to evaluate:".format(n_analyze))
     pp = pprint.PrettyPrinter(indent=4)
@@ -32,6 +36,10 @@ for _, _, files in os.walk(xp_dir):
             loss = 'svm'
         elif 'ce' in xp_file:
             loss = 'ce'
+        elif 'lml' in xp_file:
+            loss = 'lml'
+        elif 'entr' in xp_file:
+            loss = 'entr'
         else:
             raise ValueError('Could not parse loss name from filename')
 
