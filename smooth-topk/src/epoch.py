@@ -18,19 +18,34 @@ def data_to_var(data, target, cuda, volatile=False):
 
 def train(model, loss, optimizer, loader, xp, args):
 
-    if not len(loader):
+    if args.use_dali:
+        loader.reset()
+        loader_len = loader._size // loader.batch_size
+    else:
+        loader_len = len(loader)
+
+    if not loader_len:
         return 0
 
     model.train()
 
     xp.Parent_Train.reset()
 
-    for batch_idx, (data, target) in tqdm(enumerate(loader), desc='Train Epoch',
-                                          leave=False, total=len(loader)):
-        data, target = data_to_var(data, target, args.cuda)
+    for batch_idx, batch in tqdm(enumerate(loader), desc='Train Epoch',
+                                          leave=False, total=loader_len):
+        if args.use_dali:
+            data = batch[0]['data']
+            target = batch[0]['label'].squeeze().cuda().long()
+        else:
+            data, target = batch
+            data, target = data_to_var(data, target, args.cuda)
 
         output = model(data)
         obj = loss(output, target)
+        if obj.item() != obj.item():
+            print('NaN Erorr')
+            import sys
+            sys.exit(-1)
 
         optimizer.zero_grad()
         obj.backward()
@@ -53,8 +68,12 @@ def train(model, loss, optimizer, loader, xp, args):
 
 
 def test(model, loss, loader, xp, args):
-
-    if not len(loader):
+    if 'dali' in loader.__module__:
+        loader.reset()
+        loader_len = loader._size // loader.batch_size
+    else:
+        loader_len = len(loader)
+    if not loader_len:
         return 0
 
     model.eval()
@@ -85,10 +104,19 @@ def test(model, loss, loader, xp, args):
 
 
 def epoch_test(model, loader, xp, cuda):
+    if 'dali' in loader.__module__:
+        loader_len = loader._size // loader.batch_size
+    else:
+        loader_len = len(loader)
     metrics = xp.get_metric(tag=loader.tag, name='parent')
-    for batch_idx, (data, target) in tqdm(enumerate(loader), desc='Test Epoch',
-                                          leave=False, total=len(loader)):
-        data, target = data_to_var(data, target, cuda, volatile=True)
+    for batch_idx, batch in tqdm(enumerate(loader), desc='Test Epoch',
+                                 leave=False, total=loader_len):
+        if 'dali' in loader.__module__:
+            data = batch[0]['data']
+            target = batch[0]['label'].squeeze().cuda().long()
+        else:
+            data, target = batch
+            data, target = data_to_var(data, target, cuda, volatile=True)
         output = model(data)
 
         prec1 = accuracy(output.data, target.data, topk=1)

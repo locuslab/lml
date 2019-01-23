@@ -13,12 +13,10 @@ def get_loss(xp, args):
         loss.tau = -1
     elif args.loss == 'lml':
         print("Using LML loss")
-        loss = LMLLoss(n_classes=args.num_classes, k=args.topk)
-        loss.tau = -1
+        loss = LMLLoss(n_classes=args.num_classes, k=args.topk, tau=args.tau)
     elif args.loss == 'entr':
         print("Using truncated entr (Lapin) loss")
-        loss = EntrLoss(n_classes=args.num_classes, k=args.topk)
-        loss.tau = -1
+        loss = EntrLoss(n_classes=args.num_classes, k=args.topk, tau=args.tau)
     else:
         raise ValueError('Invalid choice of loss ({})'.format(args.loss))
 

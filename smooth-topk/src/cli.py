@@ -13,6 +13,7 @@ imagenet_defaults = dict(noise_labels=0,
                          train_size=1281167,
                          val_size=50000,
                          lr_schedule=(31, 61, 91),
+                         # lr_schedule=(76, 101, 111),
                          model='resnet18')
 
 cifar100_defaults = dict(noise_labels=1,
@@ -98,6 +99,7 @@ def _add_dataset_parser(parser):
     d_parser.add_argument('--multiple-crops', dest='multiple_crops',
                           action='store_true',
                           help="ten crops at evaluation time")
+    d_parser.add_argument('--use_dali', action='store_true')
     d_parser.set_defaults(multiple_crops=False)
 
 
