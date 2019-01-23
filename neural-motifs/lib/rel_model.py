@@ -29,9 +29,8 @@ from lib.fpn.roi_align.functions.roi_align import RoIAlignFunction
 import math
 
 import sys
-sys.path.append('/nethome/bamos/2018-intel')
+sys.path.append('/nethome/bamos/lml')
 from lml import LML
-
 
 def to_one_hot(y, n_dims=None):
     y_tensor = y.data if isinstance(y, Variable) else y
@@ -330,7 +329,7 @@ class RelModel(nn.Module):
             use_proposals=False, pass_in_obj_feats_to_decoder=True,
             pass_in_obj_feats_to_edge=True, rec_dropout=0.0, use_bias=True,
             use_tanh=True, limit_vision=True,
-            lml_topk=False,
+            lml_topk=False, lml_softmax=False, entr_topk=False,
     ):
 
         """
@@ -363,6 +362,8 @@ class RelModel(nn.Module):
         self.limit_vision = limit_vision
 
         self.lml_topk = lml_topk
+        self.lml_softmax = lml_softmax
+        self.entr_topk = entr_topk
 
         self.require_overlap = require_overlap_det and self.mode == 'sgdet'
 
@@ -642,13 +643,24 @@ class RelModel(nn.Module):
             obj_preds_i = result.obj_preds[obj_start:obj_end]
             obj_scores_i = result.obj_scores[-1]
             if self.lml_topk is not None and self.lml_topk:
-                rel_rep = LML(N=self.lml_topk, branch=1000)(
-                        rel_dists_i[:,1:].contiguous().view(-1)
-                ).view(n_rel, -1)
+                if self.lml_softmax:
+                    rel_rep = LML(N=self.lml_topk, branch=1000)(
+                        F.softmax(rel_dists_i, dim=1)[:,1:].contiguous().view(-1)
+                    ).view(n_rel, -1)
+                else:
+                    rel_rep = LML(N=self.lml_topk, branch=1000)(
+                            rel_dists_i[:,1:].contiguous().view(-1)
+                    ).view(n_rel, -1)
 
                 rel_rep = torch.cat((
                     Variable(torch.zeros(n_rel, 1).type_as(rel_dists_i.data)),
                     rel_rep,
+                ), 1)
+            elif self.entr_topk is not None and self.entr_topk:
+                # Hack to ignore the background.
+                rel_rep = torch.cat((
+                    Variable(-1e10*torch.ones(n_rel,1).type_as(rel_dists_i.data)),
+                    rel_dists_i[:,1:]
                 ), 1)
             else:
                 rel_rep = F.softmax(rel_dists_i, dim=1)

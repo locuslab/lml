@@ -245,6 +245,7 @@ def load_image_filenames(image_file, image_dir=VG_IMAGES):
     :param image_dir: directory where the VisualGenome images are located
     :return: List of filenames corresponding to the good images
     """
+    print(image_dir)
     with open(image_file, 'r') as f:
         im_data = json.load(f)
 
@@ -258,6 +259,7 @@ def load_image_filenames(image_file, image_dir=VG_IMAGES):
         filename = os.path.join(image_dir, basename)
         if os.path.exists(filename):
             fns.append(filename)
+    print(image_file, image_dir, len(fns))
     assert len(fns) == 108073
     return fns
 

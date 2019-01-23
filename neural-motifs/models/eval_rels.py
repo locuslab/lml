@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+
+import os, sys
+script_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.append('{}/../'.format(script_dir))
+
 from dataloaders.visual_genome import VGDataLoader, VG
 import numpy as np
 import torch

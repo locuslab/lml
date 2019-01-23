@@ -19,6 +19,7 @@ def stanford_path(fn):
 
 # VG_IMAGES = '/home/rowan/datasets2/VG_100K_2/VG_100K'
 VG_IMAGES = '/data/datasets/visual_genome/VG_100K'
+# VG_IMAGES = '/tmp/visual_genome/VG_100K'
 RCNN_CHECKPOINT_FN = path('faster_rcnn_500k.h5')
 
 IM_DATA_FN = stanford_path('image_data.json')
@@ -199,4 +200,6 @@ class ModelConfig(object):
         parser.add_argument('-use_tanh', dest='use_tanh',  action='store_true')
         parser.add_argument('-limit_vision', dest='limit_vision',  action='store_true')
         parser.add_argument('-lml_topk', type=int)
+        parser.add_argument('-lml_softmax', action='store_true')
+        parser.add_argument('-entr_topk', type=int)
         return parser
