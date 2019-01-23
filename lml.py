@@ -53,8 +53,8 @@ class LML(Function):
         x_sorted, _ = torch.sort(x, dim=1, descending=True)
 
         # The sigmoid saturates the interval [-7, 7]
-        nu_lower = -x_sorted[:,self.N] - 7.
-        nu_upper = -x_sorted[:,self.N+1] + 7.
+        nu_lower = -x_sorted[:,self.N-1] - 7.
+        nu_upper = -x_sorted[:,self.N] + 7.
 
         ls = torch.linspace(0,1,branch).type_as(x)
 
@@ -72,12 +72,19 @@ class LML(Function):
             fs = torch.sigmoid(_xs).sum(dim=2) - self.N
             # assert torch.all(fs[:,0] < 0) and torch.all(fs[:,-1] > 0)
 
-
             i_lower = ((fs < 0).sum(dim=1) - 1).long()
+            J = i_lower < 0
+            if J.sum() > 0:
+                print('LML Warning: An example has all positive iterates.')
+                i_lower[J] = 0
+
             i_upper = i_lower + 1
 
             nu_lower[I] = nus.gather(1, i_lower.unsqueeze(1)).squeeze()
             nu_upper[I] = nus.gather(1, i_upper.unsqueeze(1)).squeeze()
+
+            if J.sum() > 0:
+                nu_lower[J] -= 7.
 
         if np.any(I.cpu().numpy()):
             print('LML Warning: Did not converge.')
