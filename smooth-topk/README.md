@@ -1,3 +1,10 @@
+This directory and README are from the
+[oval-group/smooth-topk](https://github.com/oval-group/smooth-topk)
+repository.
+Our modifications remain under the same license.
+
+---
+
 # Smooth Loss Functions for Deep Top-k Classification
 
 This repository contains the implementation of the paper [Smooth Loss Functions for Deep Top-k Classification](https://openreview.net/forum?id=Hk5elxbRW&noteId=Hk5elxbRW) in pytorch. If you use this work for your research, please cite the paper:

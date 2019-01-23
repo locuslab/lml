@@ -1,3 +1,11 @@
+This directory and README are from the
+[rowanz/neural-motifs](https://github.com/rowanz/neural-motifs)
+repository.
+Our modifications remain under the same license.
+
+
+---
+
 # neural-motifs
 Code for Neural Motifs: Scene Graph Parsing with Global Context (CVPR 2018)
 
