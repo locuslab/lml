@@ -3,7 +3,7 @@
 We provide the LML layer as a PyTorch module in `lml.py`
 that can be imported and used as
 
-```
+```python
 from lml import LML
 
 x = ...
@@ -25,6 +25,13 @@ A single LML training run can be done from the `smooth-topk/src` directory with
 
 Coordinating all of the CIFAR-100 experiments can be done with
 the `./scripts/cifar100_noise_*.sh` scripts.
+
+We have also added an option to use the 
+[NVIDIA/DALI](https://github.com/NVIDIA/DALI)
+library for pre-processing ImageNet images on the GPU,
+but [DALI currently has known memory leaks](https://github.com/NVIDIA/DALI/issues/344)
+that currently cause the experiments to crash and
+run out of memory.
 
 # Neural Motifs: Scene Graph Generation
 
