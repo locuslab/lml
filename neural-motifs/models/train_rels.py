@@ -84,6 +84,7 @@ def main():
         lml_topk=conf.lml_topk,
         lml_softmax=conf.lml_softmax,
         entr_topk=conf.entr_topk,
+        ml_loss=conf.ml_loss
     )
 
     # Freeze the detector
@@ -252,6 +253,32 @@ def train_batch(batch_num, b, detector, train, optimizer, verbose=False):
 
         loss = torch.cat(loss)
         loss = torch.sum(loss) / n_pos
+        losses['rel_loss'] = loss
+    elif conf.ml_loss:
+        loss = []
+
+        start = 0
+        for i, rel_reps_i in enumerate(result.rel_reps):
+            n = rel_reps_i.shape[0]
+
+            # Get rid of the background labels here:
+            reps = result.rel_dists[start:start+n,1:].contiguous().view(-1)
+            gt = result.rel_labels[start:start+n,-1].data.cpu()
+            I = gt > 0
+            gt = gt[I]
+            gt = gt - 1 # Hacky shift to get rid of background labels.
+            r = (n_rel-1)*torch.arange(len(I))[I].long()
+            gt_flat = r + gt
+            gt_flat_onehot = torch.zeros(len(reps))
+            gt_flat_onehot.scatter_(0, gt_flat, 1)
+            loss_i = torch.nn.BCEWithLogitsLoss(size_average=False)(
+                reps, Variable(gt_flat_onehot.cuda()))
+            loss.append(loss_i)
+
+            start += n
+
+        loss = torch.cat(loss)
+        loss = torch.sum(loss) / len(loss)
         losses['rel_loss'] = loss
     elif conf.entr_topk is not None and conf.entr_topk:
         # Note: This still uses a maximum of 1 relationship per edge

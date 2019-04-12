@@ -202,4 +202,5 @@ class ModelConfig(object):
         parser.add_argument('-lml_topk', type=int)
         parser.add_argument('-lml_softmax', action='store_true')
         parser.add_argument('-entr_topk', type=int)
+        parser.add_argument('-ml_loss', action='store_true')
         return parser

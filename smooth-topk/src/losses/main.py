@@ -1,6 +1,7 @@
 import torch.nn as nn
 from losses.svm import SmoothSVM
 from losses.lml_loss import LMLLoss
+from losses.ml import MLLoss
 from losses.entr import EntrLoss
 
 def get_loss(xp, args):
@@ -14,6 +15,8 @@ def get_loss(xp, args):
     elif args.loss == 'lml':
         print("Using LML loss")
         loss = LMLLoss(n_classes=args.num_classes, k=args.topk, tau=args.tau)
+    elif args.loss == 'ml':
+        loss = MLLoss(n_classes=args.num_classes)
     elif args.loss == 'entr':
         print("Using truncated entr (Lapin) loss")
         loss = EntrLoss(n_classes=args.num_classes, k=args.topk, tau=args.tau)

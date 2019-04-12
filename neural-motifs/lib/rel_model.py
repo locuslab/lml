@@ -330,6 +330,7 @@ class RelModel(nn.Module):
             pass_in_obj_feats_to_edge=True, rec_dropout=0.0, use_bias=True,
             use_tanh=True, limit_vision=True,
             lml_topk=False, lml_softmax=False, entr_topk=False,
+            ml_loss=False,
     ):
 
         """
@@ -364,6 +365,8 @@ class RelModel(nn.Module):
         self.lml_topk = lml_topk
         self.lml_softmax = lml_softmax
         self.entr_topk = entr_topk
+
+        self.ml_loss = ml_loss
 
         self.require_overlap = require_overlap_det and self.mode == 'sgdet'
 
@@ -656,7 +659,7 @@ class RelModel(nn.Module):
                     Variable(torch.zeros(n_rel, 1).type_as(rel_dists_i.data)),
                     rel_rep,
                 ), 1)
-            elif self.entr_topk is not None and self.entr_topk:
+            elif (self.entr_topk is not None and self.entr_topk) or self.ml_loss:
                 # Hack to ignore the background.
                 rel_rep = torch.cat((
                     Variable(-1e10*torch.ones(n_rel,1).type_as(rel_dists_i.data)),

@@ -38,6 +38,8 @@ for _, _, files in os.walk(xp_dir):
             loss = 'ce'
         elif 'lml' in xp_file:
             loss = 'lml'
+        elif '_ml' in xp_file:
+            loss = 'ml'
         elif 'entr' in xp_file:
             loss = 'entr'
         else:

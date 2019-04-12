@@ -149,7 +149,7 @@ def _add_loss_parser(parser):
     l_parser = parser.add_argument_group(title='Loss parameters')
 
     l_parser.add_argument('--loss', type=str, required=True,
-                          choices=['svm', 'ce', 'svm-lapin', 'lml', 'entr'],
+                          choices=['svm', 'ce', 'svm-lapin', 'lml', 'ml', 'entr'],
                           help="loss ('svm', 'ce', 'lml')")
     l_parser.add_argument('--topk', type=int,
                           help="Top-k error to minimize")
