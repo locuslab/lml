@@ -6,5 +6,8 @@ _ext
 *.o
 *.lprof
 *.pkl
+*.egg-info
+dist
+build
 
 neural-motifs/motifnet_*

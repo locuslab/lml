@@ -1,13 +1,31 @@
 # The Limited Multi-Label Projection Layer
 
-We provide the LML layer as a PyTorch module in `lml.py`
-that can be imported and used as
+This repository is by Brandon Amos, Vladlen Koltun, J. Zico Kolter and
+contains the PyTorch library and source code to reproduce the
+experiments in our tech report on
+[The Limited Multi-Label Projection Layer](https://arxiv.org/abs/1906.08707).
+
+![](./images/polytope.png)
+![](./images/lml.png)
+
+---
+
+We provide the LML layer as a PyTorch module in `lml.py`.
+You can install it with:
+
+```
+pip install git+git://github.com/locuslab/lml.git
+```
+
+A simple usage example to project a 5-dimensional vector
+onto the LML polytope with two active elements is:
 
 ```python
+import torch
 from lml import LML
 
-x = ...
-y = LML(N=n)(x)
+x = 10.*torch.randn(5) # tensor([ -4.0695,  10.8666,  13.0867,  -7.1431, -14.7220])
+y = LML(N=2)(x) # tensor([5.8745e-04, 9.9945e-01, 9.9994e-01, 2.7187e-05, 1.3897e-08]))
 ```
 
 # Top-k Image Classification
@@ -55,6 +73,16 @@ Coordinating all of the experiments can be done with
 
 # Licensing
 
-Our LML layer in `lml.py` is licensed under the TODO license.
+Our LML layer in `lml.py` is licensed under the MIT license.
 All other code in this repository remains under the
 original licensing.
+
+If you find this repository helpful in your publications,
+please consider citing our paper.
+
+@article{amos2019limited,
+  title={{The Limited Multi-Label Projection Layer}},
+  author={Brandon Amos and Vladlen Koltun and J. Zico Kolter},
+  journal={arXiv preprint arXiv:1906.08707},
+  year={2019}
+}
