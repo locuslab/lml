@@ -71,7 +71,7 @@ python3 models/train_rels.py -m predcls -model motifnet -order leftright -nl_obj
 Coordinating all of the experiments can be done with
 `/scripts/train_predcls.sh`.
 
-# Licensing
+# Licensing and Citations
 
 Our LML layer in `lml.py` is licensed under the MIT license.
 All other code in this repository remains under the
