@@ -80,9 +80,11 @@ original licensing.
 If you find this repository helpful in your publications,
 please consider citing our paper.
 
+```
 @article{amos2019limited,
   title={{The Limited Multi-Label Projection Layer}},
   author={Brandon Amos and Vladlen Koltun and J. Zico Kolter},
   journal={arXiv preprint arXiv:1906.08707},
   year={2019}
 }
+```
