@@ -10,7 +10,8 @@ setup(
     license="MIT",
     url='https://github.com/locuslab/lml',
     py_modules=['lml'],
-    nstall_requires=[
+    install_requires=[
         'numpy>=1<2',
+        'semantic_version',
     ]
 )
