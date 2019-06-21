@@ -1,6 +1,10 @@
 # The Limited Multi-Label Projection Layer
 
-This repository is by Brandon Amos, Vladlen Koltun, J. Zico Kolter and
+This repository is by
+[Brandon Amos](http://bamos.github.io),
+[Vladlen Koltun](http://vladlen.info/),
+and
+[J. Zico Kolter](http://zicokolter.com/) and
 contains the PyTorch library and source code to reproduce the
 experiments in our tech report on
 [The Limited Multi-Label Projection Layer](https://arxiv.org/abs/1906.08707).
