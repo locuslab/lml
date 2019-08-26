@@ -36,16 +36,31 @@ old_torch = version < Version('0.4.0')
 def bdot(x, y):
     return torch.bmm(x.unsqueeze(1), y.unsqueeze(2)).squeeze()
 
-class LML(Function):
-    def __init__(self, N, eps=1e-4, n_iter=100, branch=None):
+class LML(Module):
+    def __init__(self, N, eps=1e-4, n_iter=100, branch=None, verbose=0):
         super().__init__()
         self.N = N
         self.eps = eps
         self.n_iter = n_iter
         self.branch = branch
+        self.verbose = verbose
 
     def forward(self, x):
-        branch = self.branch
+        return LML_Function.apply(
+            x, self.N, self.eps, self.n_iter, self.branch, self.verbose
+        )
+
+
+class LML_Function(Function):
+    @staticmethod
+    def forward(ctx, x, N, eps, n_iter, branch, verbose):
+        ctx.N = N
+        ctx.eps = eps
+        ctx.n_iter = n_iter
+        ctx.branch = branch
+        ctx.verbose = verbose
+
+        branch = ctx.branch
         if branch is None:
             if not x.is_cuda:
                 branch = 10
@@ -59,29 +74,29 @@ class LML(Function):
         assert x.ndimension() == 2
 
         n_batch, nx = x.shape
-        if nx <= self.N:
+        if nx <= ctx.N:
             y = (1.-1e-5)*torch.ones(n_batch, nx).type_as(x)
             if single:
                 y = y.squeeze(0)
             if old_torch:
-                self.save_for_backward(orig_x)
-                self.y = y
-                self.nu = torch.Tensor()
+                ctx.save_for_backward(orig_x)
+                ctx.y = y
+                ctx.nu = torch.Tensor()
             else:
-                self.save_for_backward(orig_x, y, torch.Tensor())
+                ctx.save_for_backward(orig_x, y, torch.Tensor())
             return y
 
         x_sorted, _ = torch.sort(x, dim=1, descending=True)
 
         # The sigmoid saturates the interval [-7, 7]
-        nu_lower = -x_sorted[:,self.N-1] - 7.
-        nu_upper = -x_sorted[:,self.N] + 7.
+        nu_lower = -x_sorted[:,ctx.N-1] - 7.
+        nu_upper = -x_sorted[:,ctx.N] + 7.
 
         ls = torch.linspace(0,1,branch).type_as(x)
 
-        for i in range(self.n_iter):
+        for i in range(ctx.n_iter):
             r = nu_upper-nu_lower
-            I = r > self.eps
+            I = r > ctx.eps
             n_update = I.sum()
             if n_update == 0:
                 break
@@ -90,7 +105,7 @@ class LML(Function):
 
             nus = r[I].unsqueeze(1)*ls + nu_lower[I].unsqueeze(1)
             _xs = x[Ix].view(n_update, 1, nx) + nus.unsqueeze(2)
-            fs = torch.sigmoid(_xs).sum(dim=2) - self.N
+            fs = torch.sigmoid(_xs).sum(dim=2) - ctx.N
             # assert torch.all(fs[:,0] < 0) and torch.all(fs[:,-1] > 0)
 
             i_lower = ((fs < 0).sum(dim=1) - 1).long()
@@ -107,8 +122,9 @@ class LML(Function):
             if J.sum() > 0:
                 nu_lower[J] -= 7.
 
-        if np.any(I.cpu().numpy()):
+        if ctx.verbose >= 0 and np.any(I.cpu().numpy()):
             print('LML Warning: Did not converge.')
+            # import ipdb; ipdb.set_trace()
 
         nu = nu_lower + r/2.
         y = torch.sigmoid(x+nu.unsqueeze(1))
@@ -117,20 +133,21 @@ class LML(Function):
 
         if old_torch:
             # Storing these in the object may cause memory leaks.
-            self.save_for_backward(orig_x)
-            self.y = y
-            self.nu = nu
+            ctx.save_for_backward(orig_x)
+            ctx.y = y
+            ctx.nu = nu
         else:
-            self.save_for_backward(orig_x, y, nu)
+            ctx.save_for_backward(orig_x, y, nu)
         return y
 
-    def backward(self, grad_output):
+    @staticmethod
+    def backward(ctx, grad_output):
         if old_torch:
-            x, = self.saved_tensors
-            y = self.y
-            nu = self.nu
+            x, = ctx.saved_tensors
+            y = ctx.y
+            nu = ctx.nu
         else:
-            x, y, nu = self.saved_tensors
+            x, y, nu = ctx.saved_tensors
 
         single = x.ndimension() == 1
         if single:
@@ -143,7 +160,7 @@ class LML(Function):
         assert grad_output.ndimension() == 2
 
         n_batch, nx = x.shape
-        if nx <= self.N:
+        if nx <= ctx.N:
             dx = torch.zeros_like(x)
             if single:
                 dx = dx.squeeze()
@@ -156,7 +173,8 @@ class LML(Function):
         if single:
             dx = dx.squeeze()
 
-        return dx
+        grads = tuple([dx] + [None]*5)
+        return grads
 
 if __name__ == '__main__':
     import sys
