@@ -164,7 +164,8 @@ class LML_Function(Function):
             dx = torch.zeros_like(x)
             if single:
                 dx = dx.squeeze()
-            return dx
+            grads = tuple([dx] + [None]*5)
+            return grads
 
         Hinv = 1./(1./y + 1./(1.-y))
         dnu = bdot(Hinv, grad_output)/Hinv.sum(dim=1)
